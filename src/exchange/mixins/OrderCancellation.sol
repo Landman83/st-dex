@@ -16,6 +16,9 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
     // The Signatures contract for signature verification
     ISignatures public signaturesContract;
     
+    // The Exchange contract address that's authorized to call functions on behalf of users
+    address public exchangeContract;
+    
     /**
      * @dev Constructor
      * @param _signaturesContract The address of the signatures contract
@@ -32,6 +35,15 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
     function setSignaturesContract(address _signaturesContract) external onlyOwner {
         require(_signaturesContract != address(0), "Signatures contract cannot be zero address");
         signaturesContract = ISignatures(_signaturesContract);
+    }
+    
+    /**
+     * @notice Set the Exchange contract address that's authorized to call functions
+     * @param _exchangeContract The Exchange contract address
+     */
+    function setExchangeContract(address _exchangeContract) external onlyOwner {
+        require(_exchangeContract != address(0), "Exchange contract cannot be zero address");
+        exchangeContract = _exchangeContract;
     }
     
     /**
@@ -59,8 +71,13 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
      * @return The previous nonce
      */
     function advanceNonce(address owner) external override returns (uint256) {
-        // Only allow calls from authorized contracts or the owner themselves
-        require(msg.sender == owner || owner == tx.origin, "Not authorized to advance nonce");
+        // Allow calls from the owner, the Exchange contract, or if tx.origin is the owner
+        require(
+            msg.sender == owner || 
+            msg.sender == exchangeContract || 
+            owner == tx.origin, 
+            "Not authorized to advance nonce"
+        );
         return _useNonce(owner);
     }
     
@@ -79,8 +96,11 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
             "Invalid maker signature"
         );
         
-        // Verify the caller is the maker
-        require(order.maker == msg.sender, "Only maker can cancel");
+        // Verify the caller is the maker or the Exchange contract
+        require(
+            order.maker == msg.sender || msg.sender == exchangeContract,
+            "Only maker can cancel"
+        );
         
         // Ensure the nonce in the order matches the current nonce
         uint256 currentNonce = nonces(order.maker);
@@ -129,9 +149,11 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
             "Invalid taker signature"
         );
         
-        // Verify the caller is either the maker or taker
+        // Verify the caller is either the maker, taker, or the Exchange contract
         require(
-            msg.sender == order.maker || msg.sender == order.taker,
+            msg.sender == order.maker || 
+            msg.sender == order.taker || 
+            msg.sender == exchangeContract,
             "Only maker or taker can cancel"
         );
         
@@ -170,8 +192,11 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
      * @param nonce The specific nonce to use
      */
     function useCheckedNonce(address owner, uint256 nonce) external {
-        // Only allow the owner to use their own nonce
-        require(msg.sender == owner, "Only owner can use their nonce");
+        // Allow the owner or the Exchange contract to use the nonce
+        require(
+            msg.sender == owner || msg.sender == exchangeContract,
+            "Only owner or Exchange can use their nonce"
+        );
         
         // Use OpenZeppelin's checked nonce function
         _useCheckedNonce(owner, nonce);
