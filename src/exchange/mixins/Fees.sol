@@ -13,6 +13,7 @@ import "../libraries/Events.sol";
  * @dev Handles fee calculations and fee settings for token pairs
  */
 contract Fees is Ownable, FeeStorage, IFees {
+    constructor(address initialOwner) Ownable(initialOwner) {}
     /**
      * @notice Calculate fees for an order
      * @param _makerToken The maker token address
@@ -43,15 +44,15 @@ contract Fees is Ownable, FeeStorage, IFees {
         fee1Wallet = feeDetails.fee1Wallet;
         fee2Wallet = feeDetails.fee2Wallet;
         
-        if (feeDetails.token1Fee \!= 0 || feeDetails.token2Fee \!= 0) {
+        if (feeDetails.token1Fee != 0 || feeDetails.token2Fee != 0) {
             // Calculate fees with safeguards
-            if (feeDetails.token1Fee \!= 0) {
+            if (feeDetails.token1Fee != 0) {
                 makerFee = (_makerAmount * feeDetails.token1Fee) / (10**feeDetails.feeBase);
                 // Ensure fee doesn't exceed amount (shouldn't be more than 10%)
                 require(makerFee <= _makerAmount / 10, "Fee1 too high");
             }
             
-            if (feeDetails.token2Fee \!= 0) {
+            if (feeDetails.token2Fee != 0) {
                 takerFee = (_takerAmount * feeDetails.token2Fee) / (10**feeDetails.feeBase);
                 // Ensure fee doesn't exceed amount (shouldn't be more than 10%)
                 require(takerFee <= _takerAmount / 10, "Fee2 too high");

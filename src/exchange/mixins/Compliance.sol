@@ -3,14 +3,15 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/ICompliance.sol";
-import "../roles/AgentRole.sol";
-import "../token/IToken.sol";
+import "@Rule506c/roles/AgentRole.sol";
+import "@Rule506c/token/IToken.sol";
 
 /**
  * @title Compliance
  * @notice Implementation of token compliance checks
  */
 contract Compliance is Ownable, ICompliance {
+    constructor(address initialOwner) Ownable(initialOwner) {}
     /**
      * @notice Check if a token is a TREX token
      * @param token The address of the token to check

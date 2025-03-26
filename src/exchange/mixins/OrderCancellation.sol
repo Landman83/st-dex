@@ -20,7 +20,7 @@ contract OrderCancellation is Ownable, Nonces, IOrderCancellation {
      * @dev Constructor
      * @param _signaturesContract The address of the signatures contract
      */
-    constructor(address _signaturesContract) {
+    constructor(address initialOwner, address _signaturesContract) Ownable(initialOwner) {
         require(_signaturesContract != address(0), "Signatures contract cannot be zero address");
         signaturesContract = ISignatures(_signaturesContract);
     }

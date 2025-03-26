@@ -1,6 +1,6 @@
 pragma solidity ^0.8.17;
 
-import "../token/IToken.sol";
+import "@Rule506c/token/IToken.sol";
 import "../mixins/Fees.sol";
 import "../libraries/Order.sol";
 import "../libraries/Events.sol";
@@ -29,11 +29,12 @@ contract AtomicSwap is Ownable {
 
     // initializes contracts
     constructor(
+        address initialOwner,
         address _feesContract,
         address _cancellationContract,
         address _complianceContract,
         address _signaturesContract
-    ) {
+    ) Ownable(initialOwner) {
         require(_feesContract != address(0), "Fees contract cannot be zero address");
         require(_cancellationContract != address(0), "Cancellation contract cannot be zero address");
         require(_complianceContract != address(0), "Compliance contract cannot be zero address");

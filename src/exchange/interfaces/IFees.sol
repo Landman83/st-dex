@@ -59,17 +59,5 @@ interface IFees {
      */
     function calculateParity(address token1, address token2) external pure returns (bytes32);
     
-    /**
-     * @dev Emitted when fees are modified for a token pair
-     */
-    event FeeModified(
-        bytes32 indexed parity,
-        address indexed token1,
-        address indexed token2,
-        uint fee1,
-        uint fee2,
-        uint feeBase,
-        address fee1Wallet,
-        address fee2Wallet
-    );
+    // Event FeeModified is defined in FeeStorage.sol
 }

@@ -1,2 +1,3 @@
-@openzeppelin=lib/openzeppelin-contracts/src/
-@Rule506c=lib/Rule506c/src/
+@openzeppelin=lib/openzeppelin-contracts/
+@Rule506c=lib/Rule506c/contracts/
+@onchain-id=lib/
