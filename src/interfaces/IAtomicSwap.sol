@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import "../libraries/Order.sol";
+import "../libraries/PermitData.sol";
 
 /**
  * @title IAtomicSwap
@@ -88,4 +89,20 @@ interface IAtomicSwap {
      * @return True if the user is an accredited investor, false otherwise
      */
     function isAccreditedInvestor(address token, address user) external view returns (bool);
+
+    /**
+     * @notice Execute a swap with signed orders and permit signatures for token approvals
+     * @param order The order details
+     * @param makerSignature The signature of the maker for the order
+     * @param takerSignature The signature of the taker for the order
+     * @param makerPermit The permit data for the maker's token
+     * @param takerPermit The permit data for the taker's token
+     */
+    function executeSignedOrderWithPermits(
+        Order.OrderInfo calldata order,
+        bytes calldata makerSignature,
+        bytes calldata takerSignature,
+        PermitData.TokenPermit calldata makerPermit,
+        PermitData.TokenPermit calldata takerPermit
+    ) external;
 }

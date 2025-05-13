@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import "../libraries/Order.sol";
+import "../libraries/PermitData.sol";
 
 /**
  * @title IExchange
@@ -111,4 +112,20 @@ interface IExchange {
      * @return The address of the registry contract
      */
     function getRegistryContract() external view returns (address);
+
+    /**
+     * @notice Execute a swap with signed orders and permit signatures for token approvals
+     * @param _order The order details
+     * @param _makerSignature The signature of the maker for the order
+     * @param _takerSignature The signature of the taker for the order
+     * @param _makerPermit The permit data for the maker's token
+     * @param _takerPermit The permit data for the taker's token
+     */
+    function executeSignedOrderWithPermits(
+        Order.OrderInfo calldata _order,
+        bytes calldata _makerSignature,
+        bytes calldata _takerSignature,
+        PermitData.TokenPermit calldata _makerPermit,
+        PermitData.TokenPermit calldata _takerPermit
+    ) external;
 }

@@ -4,10 +4,13 @@ import "@ar-security-token/src/interfaces/IToken.sol";
 import "../mixins/Fees.sol";
 import "../libraries/Order.sol";
 import "../libraries/Events.sol";
+import "../libraries/PermitData.sol";
+import "../libraries/PermitHelper.sol";
 import "../interfaces/IOrderCancellation.sol";
 import "../interfaces/ICompliance.sol";
 import "../interfaces/ISignatures.sol";
 import "../interfaces/IAtomicSwap.sol";
+import "../interfaces/IERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@ar-security-token/lib/st-identity-registry/src/libraries/Attributes.sol";
@@ -293,5 +296,64 @@ contract AtomicSwap is Ownable {
      */
     function isAccreditedInvestor(address _token, address _user) public view returns (bool) {
         return complianceContract.hasAttribute(_token, _user, Attributes.ACCREDITED_INVESTOR);
+    }
+
+    /**
+     * @notice Execute a swap with signed orders and permit signatures for token approvals
+     * @param _order The order details
+     * @param _makerSignature The signature of the maker for the order
+     * @param _takerSignature The signature of the taker for the order
+     * @param _makerPermit The permit data for the maker's token
+     * @param _takerPermit The permit data for the taker's token
+     */
+    function executeSignedOrderWithPermits(
+        Order.OrderInfo calldata _order,
+        bytes calldata _makerSignature,
+        bytes calldata _takerSignature,
+        PermitData.TokenPermit calldata _makerPermit,
+        PermitData.TokenPermit calldata _takerPermit
+    ) external {
+        // Try to execute permits for maker token
+        if (_makerPermit.token != address(0)) {
+            // Verify permit data matches the order
+            require(_makerPermit.token == _order.makerToken, "Maker permit token mismatch");
+            require(_makerPermit.owner == _order.maker, "Maker permit owner mismatch");
+            require(_makerPermit.value >= _order.makerAmount, "Maker permit value too low");
+
+            // Try to execute the permit
+            PermitHelper.tryPermit(
+                _makerPermit.token,
+                _makerPermit.owner,
+                address(this),
+                _makerPermit.value,
+                _makerPermit.deadline,
+                _makerPermit.v,
+                _makerPermit.r,
+                _makerPermit.s
+            );
+        }
+
+        // Try to execute permits for taker token
+        if (_takerPermit.token != address(0)) {
+            // Verify permit data matches the order
+            require(_takerPermit.token == _order.takerToken, "Taker permit token mismatch");
+            require(_takerPermit.owner == _order.taker, "Taker permit owner mismatch");
+            require(_takerPermit.value >= _order.takerAmount, "Taker permit value too low");
+
+            // Try to execute the permit
+            PermitHelper.tryPermit(
+                _takerPermit.token,
+                _takerPermit.owner,
+                address(this),
+                _takerPermit.value,
+                _takerPermit.deadline,
+                _takerPermit.v,
+                _takerPermit.r,
+                _takerPermit.s
+            );
+        }
+
+        // Proceed with the standard order execution
+        this.executeSignedOrder(_order, _makerSignature, _takerSignature);
     }
 }

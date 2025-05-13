@@ -1,0 +1,24 @@
+{
+  "description": "Security token purchase with cash token",
+  "domain": {
+    "name": "Numena Exchange",
+    "version": "1.0.0",
+    "chainId": 137,
+    "verifyingContract": "0x4C05d6D5b72ec37BEA51b47a8b8c79a5499F5023"
+  },
+  "order": {
+    "maker": "0xB62738Cc5b235460D736Ca607Be5daE7b7313b16",
+    "makerToken": "0x6f0b2dc87027407F17057602E4819274D8c20325",
+    "makerAmount": "100000000000000000000",
+    "taker": "0x9070459bB0cdA8a9dC3C58076a5cF28c41f3Db57",
+    "takerToken": "0xb633A20A12cc65ECafB048F5a36573Cc27c77353",
+    "takerAmount": "1000000000000000000000",
+    "makerNonce": 0,
+    "takerNonce": 0,
+    "expiry": 1749694507
+  },
+  "signatures": {
+    "maker": "0xbc71342104f2f3e88e71825d742ad5c4ba048ca00ffad606071a8f96a883eefa7b41c5ced6acc018d2dbdb733f0b4747bceead12aef09d6c1160868ffa9aaede1c",
+    "taker": "0x62f116107325308095b1838be0aff33bea9e24e3720e8f82ad74b0bed674e4be5646ce288c22b78d6ba2e4316cf7a2234faae98eb1ab83f68f20a8376a9868211c"
+  }
+}

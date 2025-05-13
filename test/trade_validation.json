@@ -1,0 +1,8 @@
+{
+  "sellerAddress": "0xB62738Cc5b235460D736Ca607Be5daE7b7313b16",
+  "buyerAddress": "0x9070459bB0cdA8a9dC3C58076a5cF28c41f3Db57",
+  "securityTokenAddress": "0x7c8c75bBD60123cC5a743dF08F5d33D142bB5f8E",
+  "cashTokenAddress": "0xb633A20A12cc65ECafB048F5a36573Cc27c77353",
+  "securityTokenAmount": "100000000000000000000",
+  "cashTokenAmount": "1000000000000000000000"
+}
