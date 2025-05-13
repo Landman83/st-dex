@@ -29,10 +29,9 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
     // Version information
     string public constant VERSION = "2.0.0";
     
-    // Constructor only initializes values, actual initialization happens via initialize()
+    // Constructor is empty, initialization happens via initialize()
     constructor() {
-        // Prevent implementation contract from being initialized
-        _initialized = true;
+        // No initialization here, allowing initialize() to be called
     }
     
     /**
