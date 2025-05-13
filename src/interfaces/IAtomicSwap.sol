@@ -67,25 +67,25 @@ interface IAtomicSwap {
     function setSignaturesContract(address signaturesContract) external;
 
     /**
-     * @notice Check if a token is a TREX token
+     * @notice Check if a token is a security token
      * @param token The token address to check
-     * @return True if the token is a TREX token, false otherwise
+     * @return True if the token is a security token, false otherwise
      */
-    function isTREX(address token) external view returns (bool);
+    function isSecurityToken(address token) external view returns (bool);
     
     /**
-     * @notice Check if a user is a TREX agent
+     * @notice Check if a user has KYC verification for a token
      * @param token The token address to check
      * @param user The user address to check
-     * @return True if the user is a TREX agent, false otherwise
+     * @return True if the user has KYC verification, false otherwise
      */
-    function isTREXAgent(address token, address user) external view returns (bool);
+    function isKYCVerified(address token, address user) external view returns (bool);
     
     /**
-     * @notice Check if a user is a TREX owner
+     * @notice Check if a user is an accredited investor for a token
      * @param token The token address to check
      * @param user The user address to check
-     * @return True if the user is a TREX owner, false otherwise
+     * @return True if the user is an accredited investor, false otherwise
      */
-    function isTREXOwner(address token, address user) external view returns (bool);
+    function isAccreditedInvestor(address token, address user) external view returns (bool);
 }

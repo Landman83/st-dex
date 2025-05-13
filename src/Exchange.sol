@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
+// Import Attributes library for KYC and accredited investor constants
+import "@ar-security-token/lib/st-identity-registry/src/libraries/Attributes.sol";
 import "./interfaces/IExchange.sol";
 import "./mixins/AtomicSwap.sol";
 import "./mixins/Compliance.sol";
@@ -25,7 +27,7 @@ import "./libraries/ExchangeErrors.sol";
  */
 contract Exchange is IExchange, Initializer, ReentrancyGuard {
     // Version information
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "2.0.0";
     
     // Constructor only initializes values, actual initialization happens via initialize()
     constructor() {
@@ -103,14 +105,29 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
             ExchangeErrors.INSUFFICIENT_TAKER_ALLOWANCE
         );
 
-        // Calculate fees
-        (uint256 makerFee, uint256 takerFee, address fee1Wallet, address fee2Wallet) = 
+        // Calculate fees with single fee wallet
+        (uint256 makerFee, uint256 takerFee, address feeWallet) = 
             IFees(feesContract).calculateOrderFees(
                 _order.makerToken, 
                 _order.takerToken, 
                 _order.makerAmount, 
                 _order.takerAmount
             );
+
+        // Log transfer attempts for monitoring
+        ICompliance(complianceContract).logTransferAttempt(
+            _order.makerToken,
+            _order.maker,
+            _order.taker,
+            _order.makerAmount - makerFee
+        );
+        
+        ICompliance(complianceContract).logTransferAttempt(
+            _order.takerToken,
+            _order.taker,
+            _order.maker,
+            _order.takerAmount - takerFee
+        );
 
         // Execute the swap with fees
         _executeSwap(
@@ -122,8 +139,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
             _order.takerAmount,
             makerFee,
             takerFee,
-            fee1Wallet,
-            fee2Wallet
+            feeWallet
         );
         
         // Mark nonces as used
@@ -145,7 +161,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
     }
 
     /**
-     * @notice Internal function to execute the token swap
+     * @notice Internal function to execute the token swap with a single fee wallet
      */
     function _executeSwap(
         IERC20 makerToken,
@@ -156,11 +172,10 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
         uint256 takerAmount,
         uint256 makerFee,
         uint256 takerFee,
-        address fee1Wallet,
-        address fee2Wallet
+        address feeWallet
     ) internal {
         // Handle maker tokens
-        if (makerFee > 0 && fee1Wallet != address(0)) {
+        if (makerFee > 0 && feeWallet != address(0)) {
             // Safety check to avoid overflow
             require(makerFee <= makerAmount, ExchangeErrors.FEE_EXCEEDS_AMOUNT);
             
@@ -172,7 +187,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
             
             // Send fee to fee wallet
             require(
-                makerToken.transferFrom(maker, fee1Wallet, makerFee),
+                makerToken.transferFrom(maker, feeWallet, makerFee),
                 ExchangeErrors.MAKER_FEE_TRANSFER_FAILED
             );
         } else {
@@ -184,7 +199,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
         }
 
         // Handle taker tokens
-        if (takerFee > 0 && fee2Wallet != address(0)) {
+        if (takerFee > 0 && feeWallet != address(0)) {
             // Safety check to avoid overflow
             require(takerFee <= takerAmount, ExchangeErrors.FEE_EXCEEDS_AMOUNT);
             
@@ -196,7 +211,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
             
             // Send fee to fee wallet
             require(
-                takerToken.transferFrom(taker, fee2Wallet, takerFee),
+                takerToken.transferFrom(taker, feeWallet, takerFee),
                 ExchangeErrors.TAKER_FEE_TRANSFER_FAILED
             );
         } else {
@@ -292,6 +307,34 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
         require(_registryContract != address(0), ExchangeErrors.ZERO_ADDRESS);
         registryContract = _registryContract;
         emit Events.RegistryContractUpdated(_registryContract);
+    }
+    
+    /**
+     * @notice Helper function to check if an investor has KYC verification for a token
+     * @param token The token address to check
+     * @param user The user address to check
+     * @return True if the user has KYC verification, false otherwise
+     */
+    function isKYCVerified(address token, address user) public view returns (bool) {
+        return ICompliance(complianceContract).hasAttribute(
+            token, 
+            user, 
+            Attributes.KYC_VERIFIED
+        );
+    }
+    
+    /**
+     * @notice Helper function to check if an investor is an accredited investor for a token
+     * @param token The token address to check
+     * @param user The user address to check
+     * @return True if the user is an accredited investor, false otherwise
+     */
+    function isAccreditedInvestor(address token, address user) public view returns (bool) {
+        return ICompliance(complianceContract).hasAttribute(
+            token, 
+            user, 
+            Attributes.ACCREDITED_INVESTOR
+        );
     }
     
     /**

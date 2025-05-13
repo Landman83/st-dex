@@ -2,16 +2,15 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "../src/exchange/Exchange.sol";
-import "../src/exchange/ExchangeProxy.sol";
-import "../src/exchange/mixins/Fees.sol";
-import "../src/exchange/mixins/Compliance.sol";
-import "../src/exchange/mixins/OrderCancellation.sol";
-import "../src/exchange/mixins/Signatures.sol";
-import "../src/exchange/mixins/Registry.sol";
-import "../src/exchange/libraries/Order.sol";
-import "../src/exchange/libraries/ExchangeErrors.sol";
-import "../src/exchange/interfaces/ISignatures.sol";
+import "../src/Exchange.sol";
+import "../src/mixins/Fees.sol";
+import "../src/mixins/Compliance.sol";
+import "../src/mixins/OrderCancellation.sol";
+import "../src/mixins/Signatures.sol";
+import "../src/mixins/Registry.sol";
+import "../src/libraries/Order.sol";
+import "../src/libraries/ExchangeErrors.sol";
+import "../src/interfaces/ISignatures.sol";
 
 // Create a mock ERC20 token for testing
 contract MockERC20 is Test {
@@ -130,10 +129,8 @@ contract MockSignatures is ISignatures {
 }
 
 contract ExchangeTest is Test {
-    // Main contracts
-    Exchange public exchangeImplementation;
-    ExchangeProxy public exchangeProxy;
-    Exchange public exchange; // proxy-wrapped implementation
+    // Main contract
+    Exchange public exchange;
 
     // Component contracts
     Fees public fees;
@@ -145,39 +142,39 @@ contract ExchangeTest is Test {
     // Test tokens
     MockERC20 public tokenA;
     MockERC20 public tokenB;
-    
+
     // Test accounts
     address public owner = address(0x1);
     address public maker = address(0x2);
     address public taker = address(0x3);
     address public feeWallet = address(0x4);
     address public newOwner = address(0x5);
-    
+
     // Initial balances
     uint256 public constant INITIAL_BALANCE = 1000 ether;
-    
+
     function setUp() public {
         vm.startPrank(owner);
-        
+
         // Deploy tokens
         tokenA = new MockERC20("Token A", "TKNA", INITIAL_BALANCE);
         tokenB = new MockERC20("Token B", "TKNB", INITIAL_BALANCE);
-        
+
         // Transfer tokens to maker and taker
         tokenA.transfer(maker, 500 ether);
         tokenB.transfer(taker, 500 ether);
-        
+
         // Deploy component contracts with mocked signatures
         mockSignatures = new MockSignatures();
         orderCancellation = new OrderCancellation(owner, address(mockSignatures));
         compliance = new Compliance(owner);
         fees = new Fees(owner);
         registry = new MockRegistry();
-        
+
         // Register tokens in the registry
         registry.registerAsset(address(tokenA));
         registry.registerAsset(address(tokenB));
-        
+
         // Configure fees for token pair
         fees.modifyFee(
             address(tokenA),
@@ -185,19 +182,14 @@ contract ExchangeTest is Test {
             1, // 1% fee on tokenA
             2, // 2% fee on tokenB
             2, // fee base (10^2 = 100, so percentages)
-            feeWallet,
             feeWallet
         );
-        
-        // Deploy Exchange implementation
-        exchangeImplementation = new Exchange();
-        
-        // Deploy Exchange Proxy
-        exchangeProxy = new ExchangeProxy(address(exchangeImplementation), owner);
-        
-        // Initialize the proxy
-        bytes memory initializeCalldata = abi.encodeWithSignature(
-            "initialize(address,address,address,address,address,address)",
+
+        // Deploy Exchange and initialize it directly
+        exchange = new Exchange();
+
+        // Initialize the Exchange
+        exchange.initialize(
             owner,                      // Owner
             address(fees),              // Fees contract
             address(orderCancellation), // Cancellation contract
@@ -205,16 +197,10 @@ contract ExchangeTest is Test {
             address(mockSignatures),    // Signatures contract
             address(registry)           // Registry contract
         );
-        
-        (bool success, ) = address(exchangeProxy).call(initializeCalldata);
-        require(success, "Initialization failed");
-        
-        // Create the proxy-wrapped instance for ease of calling
-        exchange = Exchange(payable(address(exchangeProxy)));
-        
+
         // Set the Exchange contract address in the OrderCancellation contract
-        orderCancellation.setExchangeContract(address(exchangeProxy));
-        
+        orderCancellation.setExchangeContract(address(exchange));
+
         vm.stopPrank();
     }
     
@@ -453,45 +439,14 @@ contract ExchangeTest is Test {
         assertEq(address(exchange).balance, amount, "Contract should have received ETH");
     }
     
-    // Test proxy upgrade
-    function test_ProxyUpgrade() public {
-        // Deploy a new implementation
-        Exchange newImplementation = new Exchange();
-        
-        // Upgrade the proxy
-        vm.prank(owner);
-        exchangeProxy.upgradeTo(address(newImplementation));
-        
-        // Verify the implementation is updated
-        assertEq(exchangeProxy.implementation(), address(newImplementation), "Implementation should be updated");
-    }
-    
-    // Test proxy admin change
-    function test_ProxyAdminChange() public {
-        // Change the admin
-        vm.prank(owner);
-        exchangeProxy.changeAdmin(newOwner);
-        
-        // Verify the admin is updated
-        assertEq(exchangeProxy.admin(), newOwner, "Admin should be updated");
-    }
-    
-    // Test unauthorized proxy upgrade
-    function test_UnauthorizedProxyUpgrade() public {
-        // Deploy a new implementation
-        Exchange newImplementation = new Exchange();
-        
-        // Try to upgrade from unauthorized account
-        vm.prank(taker);
-        vm.expectRevert(bytes(ExchangeErrors.ONLY_ADMIN));
-        exchangeProxy.upgradeTo(address(newImplementation));
-    }
+    // Note: Proxy tests removed as we're now using direct implementation
     
     // Test double initialization prevention
     function test_PreventDoubleInitialization() public {
         // Try to initialize again
-        bytes memory initializeCalldata = abi.encodeWithSignature(
-            "initialize(address,address,address,address,address,address)",
+        vm.prank(owner);
+        vm.expectRevert(bytes(ExchangeErrors.ALREADY_INITIALIZED));
+        exchange.initialize(
             owner,
             address(fees),
             address(orderCancellation),
@@ -499,11 +454,5 @@ contract ExchangeTest is Test {
             address(mockSignatures),
             address(registry)
         );
-        
-        // Just use expectRevert without checking the success flag
-        vm.expectRevert(bytes(ExchangeErrors.ALREADY_INITIALIZED));
-        (bool success, ) = address(exchangeProxy).call(initializeCalldata);
-        
-        // No need for assertFalse here since expectRevert already checks for the revert
     }
 }

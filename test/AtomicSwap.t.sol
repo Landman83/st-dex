@@ -2,12 +2,12 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "../src/exchange/mixins/AtomicSwap.sol";
-import "../src/exchange/mixins/Fees.sol";
-import "../src/exchange/mixins/Compliance.sol";
-import "../src/exchange/mixins/OrderCancellation.sol";
-import "../src/exchange/mixins/Signatures.sol";
-import "../src/exchange/libraries/Order.sol";
+import "../src/mixins/AtomicSwap.sol";
+import "../src/mixins/Fees.sol";
+import "../src/mixins/Compliance.sol";
+import "../src/mixins/OrderCancellation.sol";
+import "../src/mixins/Signatures.sol";
+import "../src/libraries/Order.sol";
 
 // Create a mock ERC20 token for testing
 contract MockERC20 is Test {
@@ -227,7 +227,7 @@ contract TestAtomicSwap {
         );
 
         // Calculate fees
-        (uint256 makerFee, uint256 takerFee, address fee1Wallet, address fee2Wallet) = 
+        (uint256 makerFee, uint256 takerFee, address feeWallet) = 
             feesContract.calculateOrderFees(
                 _order.makerToken, 
                 _order.takerToken, 
@@ -245,8 +245,7 @@ contract TestAtomicSwap {
             _order.takerAmount,
             makerFee,
             takerFee,
-            fee1Wallet,
-            fee2Wallet
+            feeWallet
         );
         
         // Mark nonces as used
@@ -263,11 +262,10 @@ contract TestAtomicSwap {
         uint256 takerAmount,
         uint256 makerFee,
         uint256 takerFee,
-        address fee1Wallet,
-        address fee2Wallet
+        address feeWallet
     ) internal {
         // Handle maker tokens
-        if (makerFee > 0 && fee1Wallet != address(0)) {
+        if (makerFee > 0 && feeWallet != address(0)) {
             // Safety check to avoid overflow
             require(makerFee <= makerAmount, "Fee exceeds amount");
             
@@ -275,14 +273,14 @@ contract TestAtomicSwap {
             makerToken.transferFrom(maker, taker, makerAmount - makerFee);
             
             // Send fee to fee wallet
-            makerToken.transferFrom(maker, fee1Wallet, makerFee);
+            makerToken.transferFrom(maker, feeWallet, makerFee);
         } else {
             // No fee, send full amount
             makerToken.transferFrom(maker, taker, makerAmount);
         }
 
         // Handle taker tokens
-        if (takerFee > 0 && fee2Wallet != address(0)) {
+        if (takerFee > 0 && feeWallet != address(0)) {
             // Safety check to avoid overflow
             require(takerFee <= takerAmount, "Fee exceeds amount");
             
@@ -290,7 +288,7 @@ contract TestAtomicSwap {
             takerToken.transferFrom(taker, maker, takerAmount - takerFee);
             
             // Send fee to fee wallet
-            takerToken.transferFrom(taker, fee2Wallet, takerFee);
+            takerToken.transferFrom(taker, feeWallet, takerFee);
         } else {
             // No fee, send full amount
             takerToken.transferFrom(taker, maker, takerAmount);
@@ -344,7 +342,6 @@ contract AtomicSwapTest is Test {
             1, // 1% fee on tokenA
             2, // 2% fee on tokenB
             2, // fee base (10^2 = 100, so percentages)
-            feeWallet,
             feeWallet
         );
         

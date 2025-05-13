@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 /**
  * @title IRegistry
- * @notice Interface for the Registry contract that manages ERC20 and Rule506c token assets
+ * @notice Interface for the Registry contract that manages ERC20 and security token assets
  */
 interface IRegistry {
     // Asset struct to store token information
@@ -14,7 +14,7 @@ interface IRegistry {
         uint8 decimals;             // Token decimals
         bool isConfirmed;           // Whether token registration is confirmed
         uint64 confirmedTimestamp;  // Timestamp when the token was confirmed
-        bool isSecurityToken;       // Whether it's a Rule506c security token
+        bool isSecurityToken;       // Whether it's a security token with an attribute registry
     }
     
     /**
@@ -22,7 +22,7 @@ interface IRegistry {
      * @param tokenAddress Address of the token contract
      * @param symbol Symbol of the token
      * @param decimals Number of decimals for the token
-     * @param isSecurityToken Whether the token is a security token (Rule506c)
+     * @param isSecurityToken Whether the token is a security token with an attribute registry
      */
     function registerToken(
         address tokenAddress,
@@ -36,7 +36,7 @@ interface IRegistry {
      * @param tokenAddress Address of the token contract
      * @param symbol Symbol of the token
      * @param decimals Number of decimals for the token
-     * @param isSecurityToken Whether the token is a security token (Rule506c)
+     * @param isSecurityToken Whether the token is a security token with an attribute registry
      */
     function confirmTokenRegistration(
         address tokenAddress,

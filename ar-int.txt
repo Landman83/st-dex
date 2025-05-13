@@ -1,0 +1,287 @@
+# Migration Plan: Integrating ar-dse Exchange Protocol with st-identity-registry
+
+## Overview
+
+This document outlines the steps needed to migrate the ar-dse exchange protocol from the current TREX-based compliance system to the new st-identity-registry-based compliance system. The migration will completely replace the old compliance system with the new one, focusing on optimizing gas efficiency and leveraging token-level compliance enforcement.
+
+## Current Architecture Analysis
+
+The current ar-dse protocol uses a modular approach where:
+
+1. **Exchange Contract**: Main contract that manages the exchange functionality, including token swaps
+2. **AtomicSwap Contract**: Mixin contract integrated into the Exchange contract for token swap functionality
+3. **Compliance Contract**: Current implementation checks for TREX tokens, agent roles, and owner roles
+4. **Fee Structure**: Currently uses separate fee wallets for maker and taker tokens
+
+Key issues to address:
+- Duplicate fee wallet configuration is inefficient
+- Redundant compliance checks may be occurring at both token and exchange levels
+- The existing TREX system is being completely replaced, so no backward compatibility is needed
+
+## Target Architecture (st-identity-registry)
+
+The new st-identity-registry system uses:
+
+1. **AttributeRegistry**: Stores user attributes with expiry functionality
+2. **Predefined Attributes**: Such as KYC_VERIFIED, ACCREDITED_INVESTOR
+3. **Security Tokens**: Connect to the AttributeRegistry for compliance checks
+
+## Required Changes
+
+### 1. Simplify Fee Structure
+
+```solidity
+// Update fee calculation to use a single fee wallet
+function calculateOrderFees(
+    address makerToken,
+    address takerToken,
+    uint256 makerAmount,
+    uint256 takerAmount
+) external view returns (uint256 makerFee, uint256 takerFee, address feeWallet) {
+    // Replace with your fee calculation logic
+    // Return a single fee wallet instead of separate fee1Wallet/fee2Wallet
+}
+```
+
+### 2. Replace ICompliance Interface
+
+The existing interface should be completely replaced with the new compliance checks:
+
+```solidity
+interface ICompliance {
+    // Check if a token is a security token with attribute registry
+    function isSecurityToken(address token) external view returns (bool);
+    
+    // Check if a user has a specific attribute for a token
+    function hasAttribute(address token, address user, bytes32 attribute) external view returns (bool);
+    
+    // Event broadcasting function (rather than direct compliance checks)
+    function logTransferAttempt(
+        address token, 
+        address from, 
+        address to, 
+        uint256 amount
+    ) external returns (bool);
+}
+```
+
+### 3. Create New AttributeCompliance Implementation
+
+```solidity
+contract AttributeCompliance is Ownable, ICompliance {
+    // Event for transfer attempts (for monitoring and analytics)
+    event TransferAttempt(
+        address indexed token,
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bool isSecurityToken
+    );
+    
+    constructor(address initialOwner) Ownable(initialOwner) {}
+    
+    // Check if a token is a security token with attribute registry
+    function isSecurityToken(address token) public view override returns (bool) {
+        try IToken(token).attributeRegistry() returns (IAttributeRegistry _ar) {
+            return address(_ar) != address(0);
+        }
+        catch {
+            return false;
+        }
+    }
+    
+    // Check if a user has a specific attribute for a token
+    function hasAttribute(address token, address user, bytes32 attribute) public view override returns (bool) {
+        if (!isSecurityToken(token)) return false;
+        
+        try IToken(token).attributeRegistry() returns (IAttributeRegistry attributeRegistry) {
+            try attributeRegistry.hasAttribute(user, attribute) returns (bool hasAttr) {
+                return hasAttr;
+            } catch {
+                return false;
+            }
+        } catch {
+            return false;
+        }
+    }
+    
+    // Log transfer attempts but don't enforce compliance at exchange level
+    function logTransferAttempt(
+        address token, 
+        address from, 
+        address to, 
+        uint256 amount
+    ) external override returns (bool) {
+        bool isSecurity = isSecurityToken(token);
+        
+        // Emit event for monitoring
+        emit TransferAttempt(token, from, to, amount, isSecurity);
+        
+        return true; // Always return true, as compliance is enforced at token level
+    }
+}
+```
+
+### 4. Modify Exchange Contract 
+
+Update the Exchange contract to use the simplified fee structure and to log transfer attempts rather than enforcing compliance:
+
+```solidity
+// Update fee calculation call to use a single fee wallet
+(uint256 makerFee, uint256 takerFee, address feeWallet) = 
+    IFees(feesContract).calculateOrderFees(
+        _order.makerToken, 
+        _order.takerToken, 
+        _order.makerAmount, 
+        _order.takerAmount
+    );
+
+// Update _executeSwap to use a single fee wallet
+function _executeSwap(
+    IERC20 makerToken,
+    IERC20 takerToken,
+    address maker,
+    address taker,
+    uint256 makerAmount,
+    uint256 takerAmount,
+    uint256 makerFee,
+    uint256 takerFee,
+    address feeWallet
+) internal {
+    // Log transfer attempts for analytics/monitoring
+    ICompliance(complianceContract).logTransferAttempt(
+        address(makerToken), 
+        maker, 
+        taker, 
+        makerAmount - makerFee
+    );
+    ICompliance(complianceContract).logTransferAttempt(
+        address(takerToken), 
+        taker, 
+        maker, 
+        takerAmount - takerFee
+    );
+    
+    // Handle maker tokens
+    if (makerFee > 0 && feeWallet != address(0)) {
+        // Safety check to avoid overflow
+        require(makerFee <= makerAmount, "Fee exceeds amount");
+        
+        // Send tokens to taker (minus fee)
+        require(
+            makerToken.transferFrom(maker, taker, makerAmount - makerFee),
+            "Maker transfer failed"
+        );
+        
+        // Send fee to fee wallet
+        require(
+            makerToken.transferFrom(maker, feeWallet, makerFee),
+            "Maker fee transfer failed"
+        );
+    } else {
+        // No fee, send full amount
+        require(
+            makerToken.transferFrom(maker, taker, makerAmount),
+            "Maker transfer failed"
+        );
+    }
+
+    // Handle taker tokens
+    if (takerFee > 0 && feeWallet != address(0)) {
+        // Safety check to avoid overflow
+        require(takerFee <= takerAmount, "Fee exceeds amount");
+        
+        // Send tokens to maker (minus fee)
+        require(
+            takerToken.transferFrom(taker, maker, takerAmount - takerFee),
+            "Taker transfer failed"
+        );
+        
+        // Send fee to fee wallet
+        require(
+            takerToken.transferFrom(taker, feeWallet, takerFee),
+            "Taker fee transfer failed"
+        );
+    } else {
+        // No fee, send full amount
+        require(
+            takerToken.transferFrom(taker, maker, takerAmount),
+            "Taker transfer failed"
+        );
+    }
+}
+```
+
+### 5. Add Helper Methods for Attribute Checks (Optional)
+
+Add helper methods in the Exchange contract to check token attributes but don't enforce them:
+
+```solidity
+function isKYCVerified(address token, address user) public view returns (bool) {
+    return ICompliance(complianceContract).hasAttribute(token, user, Attributes.KYC_VERIFIED);
+}
+
+function isAccreditedInvestor(address token, address user) public view returns (bool) {
+    return ICompliance(complianceContract).hasAttribute(token, user, Attributes.ACCREDITED_INVESTOR);
+}
+```
+
+## Understanding Exchange vs. AtomicSwap
+
+After analyzing the code, the relationship between Exchange and AtomicSwap is:
+
+1. **Exchange.sol**: Main contract that implements the exchange interface (IExchange)
+   - Integrates multiple mixins including AtomicSwap
+   - Handles order execution, cancellation and contract management
+   - Uses a modular approach via the Initializer mixin
+
+2. **AtomicSwap.sol**: A mixin contract that provides core atomic swap functionality
+   - Originally designed as a standalone contract but integrated into Exchange
+   - Has similar functionality but with different integration patterns
+
+The migration plan must update both contracts, focusing on:
+- Modifying Exchange as the primary entry point
+- Ensuring AtomicSwap remains compatible when used in isolation
+- Consolidating fee wallet structure across both implementations
+
+## Implementation Plan
+
+### Phase 1: Core Contract Updates
+
+1. Update IFees interface to use a single fee wallet
+2. Replace ICompliance interface with the new attribute-based interface
+3. Implement the new AttributeCompliance contract
+4. Update Exchange and related mixins to use the single fee wallet
+
+### Phase 2: Testing and Deployment
+
+1. Deploy the new AttributeCompliance contract
+2. Update Exchange implementation to point to the new compliance contract
+3. Test thoroughly with various token types including both security and standard tokens
+
+## Testing Strategy
+
+1. **Unit Tests:**
+   - Test security token detection
+   - Test attribute checking
+   - Test fee structure simplification
+
+2. **Integration Tests:**
+   - Test swaps between standard ERC20 tokens
+   - Test swaps between security tokens
+   - Test swaps between security and non-security tokens
+   - Test attribute expiry handling
+
+## Security Considerations
+
+1. **Transfer Failures**: Security tokens may still reject transfers if attributes aren't valid, so the exchange should properly handle these cases
+2. **Error Handling**: Implement detailed error messages when token transfers fail due to compliance
+3. **Gas Optimization**: Event logging instead of duplicate compliance checks improves efficiency
+4. **Access Control**: Maintain proper access control for compliance contract updates
+
+## Advantages of This Approach
+
+1. **Gas Efficiency**: By removing duplicate compliance checks and relying on token-level enforcement
+2. **Simplified Fee Structure**: Using a single fee wallet reduces complexity and gas costs
+3. **Monitoring Capabilities**: Event logging provides visibility without enforcement overhead
+4. **Clean Integration**: Complete replacement with no backward compatibility allows for cleaner code

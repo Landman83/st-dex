@@ -1,6 +1,6 @@
 pragma solidity ^0.8.17;
 
-import "@Rule506c/token/IToken.sol";
+import "@ar-security-token/src/interfaces/IToken.sol";
 import "../mixins/Fees.sol";
 import "../libraries/Order.sol";
 import "../libraries/Events.sol";
@@ -10,6 +10,7 @@ import "../interfaces/ISignatures.sol";
 import "../interfaces/IAtomicSwap.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@ar-security-token/lib/st-identity-registry/src/libraries/Attributes.sol";
 
 contract AtomicSwap is Ownable {
     /// variables
@@ -143,14 +144,29 @@ contract AtomicSwap is Ownable {
             "Taker has not approved transfer"
         );
 
-        // Calculate fees using the fees contract
-        (uint256 makerFee, uint256 takerFee, address fee1Wallet, address fee2Wallet) = 
+        // Calculate fees using the fees contract - now with single fee wallet
+        (uint256 makerFee, uint256 takerFee, address feeWallet) = 
             feesContract.calculateOrderFees(
                 _order.makerToken, 
                 _order.takerToken, 
                 _order.makerAmount, 
                 _order.takerAmount
             );
+        
+        // Log transfer attempts for monitoring
+        complianceContract.logTransferAttempt(
+            _order.makerToken,
+            _order.maker,
+            _order.taker,
+            _order.makerAmount - makerFee
+        );
+        
+        complianceContract.logTransferAttempt(
+            _order.takerToken,
+            _order.taker,
+            _order.maker,
+            _order.takerAmount - takerFee
+        );
 
         // Execute the swap with fees
         _executeSwap(
@@ -162,8 +178,7 @@ contract AtomicSwap is Ownable {
             _order.takerAmount,
             makerFee,
             takerFee,
-            fee1Wallet,
-            fee2Wallet
+            feeWallet
         );
         
         // Mark nonces as used by advancing them AFTER successful execution
@@ -184,7 +199,7 @@ contract AtomicSwap is Ownable {
     }
 
     /**
-     * @dev Internal function to execute the swap
+     * @dev Internal function to execute the swap with a single fee wallet
      */
     function _executeSwap(
         IERC20 makerToken,
@@ -195,11 +210,10 @@ contract AtomicSwap is Ownable {
         uint256 takerAmount,
         uint256 makerFee,
         uint256 takerFee,
-        address fee1Wallet,
-        address fee2Wallet
+        address feeWallet
     ) internal {
         // Handle maker tokens
-        if (makerFee > 0 && fee1Wallet != address(0)) {
+        if (makerFee > 0 && feeWallet != address(0)) {
             // Safety check to avoid overflow
             require(makerFee <= makerAmount, "Fee exceeds amount");
             
@@ -207,14 +221,14 @@ contract AtomicSwap is Ownable {
             makerToken.transferFrom(maker, taker, makerAmount - makerFee);
             
             // Send fee to fee wallet
-            makerToken.transferFrom(maker, fee1Wallet, makerFee);
+            makerToken.transferFrom(maker, feeWallet, makerFee);
         } else {
             // No fee, send full amount
             makerToken.transferFrom(maker, taker, makerAmount);
         }
 
         // Handle taker tokens
-        if (takerFee > 0 && fee2Wallet != address(0)) {
+        if (takerFee > 0 && feeWallet != address(0)) {
             // Safety check to avoid overflow
             require(takerFee <= takerAmount, "Fee exceeds amount");
             
@@ -222,7 +236,7 @@ contract AtomicSwap is Ownable {
             takerToken.transferFrom(taker, maker, takerAmount - takerFee);
             
             // Send fee to fee wallet
-            takerToken.transferFrom(taker, fee2Wallet, takerFee);
+            takerToken.transferFrom(taker, feeWallet, takerFee);
         } else {
             // No fee, send full amount
             takerToken.transferFrom(taker, maker, takerAmount);
@@ -253,32 +267,31 @@ contract AtomicSwap is Ownable {
     }
 
     /**
-     * @dev Wrapper function to check if a token is a TREX token
+     * @dev Check if a token is a security token with attribute registry
      * @param _token The token address to check
-     * @return True if the token is a TREX token, false otherwise
+     * @return True if the token is a security token, false otherwise
      */
-    function isTREX(address _token) public view returns (bool) {
-        return complianceContract.isTREX(_token);
+    function isSecurityToken(address _token) public view returns (bool) {
+        return complianceContract.isSecurityToken(_token);
     }
 
     /**
-     * @dev Wrapper function to check if a user is a TREX agent
+     * @dev Check if a user has KYC verification for a token
      * @param _token The token address to check
      * @param _user The user address to check
-     * @return True if the user is a TREX agent, false otherwise
+     * @return True if the user has KYC verification, false otherwise
      */
-    function isTREXAgent(address _token, address _user) public view returns (bool) {
-        return complianceContract.isTREXAgent(_token, _user);
+    function isKYCVerified(address _token, address _user) public view returns (bool) {
+        return complianceContract.hasAttribute(_token, _user, Attributes.KYC_VERIFIED);
     }
 
     /**
-     * @dev Wrapper function to check if a user is a TREX owner
+     * @dev Check if a user is an accredited investor for a token
      * @param _token The token address to check
      * @param _user The user address to check
-     * @return True if the user is a TREX owner, false otherwise
+     * @return True if the user is an accredited investor, false otherwise
      */
-    function isTREXOwner(address _token, address _user) public view returns (bool) {
-        return complianceContract.isTREXOwner(_token, _user);
+    function isAccreditedInvestor(address _token, address _user) public view returns (bool) {
+        return complianceContract.hasAttribute(_token, _user, Attributes.ACCREDITED_INVESTOR);
     }
 }
-

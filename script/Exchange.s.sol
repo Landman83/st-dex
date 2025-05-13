@@ -2,18 +2,17 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
-import "../src/exchange/Exchange.sol";
-import "../src/exchange/ExchangeProxy.sol";
-import "../src/exchange/mixins/AtomicSwap.sol";
-import "../src/exchange/mixins/Compliance.sol";
-import "../src/exchange/mixins/Fees.sol";
-import "../src/exchange/mixins/OrderCancellation.sol";
-import "../src/exchange/mixins/Signatures.sol";
-import "../src/exchange/mixins/Registry.sol";
+import "../src/Exchange.sol";
+import "../src/mixins/AtomicSwap.sol";
+import "../src/mixins/Compliance.sol";
+import "../src/mixins/Fees.sol";
+import "../src/mixins/OrderCancellation.sol";
+import "../src/mixins/Signatures.sol";
+import "../src/mixins/Registry.sol";
 
 /**
  * @title ExchangeDeploymentScript
- * @notice Script to deploy the Exchange contract and its proxy
+ * @notice Script to deploy the Exchange contract and its components
  */
 contract ExchangeDeploymentScript is Script {
     function run() external {
@@ -44,17 +43,10 @@ contract ExchangeDeploymentScript is Script {
         );
 
         // Deploy the Exchange implementation
-        Exchange exchangeImplementation = new Exchange();
+        Exchange exchange = new Exchange();
 
-        // Deploy the Exchange proxy
-        ExchangeProxy exchangeProxy = new ExchangeProxy(
-            address(exchangeImplementation),
-            deployer // Proxy admin
-        );
-
-        // We need to encode the initialization call for the proxy
-        bytes memory initializeCalldata = abi.encodeWithSignature(
-            "initialize(address,address,address,address,address,address)",
+        // Initialize the Exchange
+        exchange.initialize(
             deployer,                  // Owner
             address(fees),             // Fees contract
             address(cancellation),     // Cancellation contract
@@ -62,13 +54,8 @@ contract ExchangeDeploymentScript is Script {
             address(signatures),       // Signatures contract
             address(registry)          // Registry contract
         );
-        
-        // Execute initialization through the proxy's execute function
-        (bool success, ) = address(exchangeProxy).call(initializeCalldata);
-        require(success, "Initialization failed");
 
-        console.log("Exchange Implementation deployed at:", address(exchangeImplementation));
-        console.log("Exchange Proxy deployed at:", address(exchangeProxy));
+        console.log("Exchange deployed at:", address(exchange));
         console.log("Fees Contract deployed at:", address(fees));
         console.log("Cancellation Contract deployed at:", address(cancellation));
         console.log("Compliance Contract deployed at:", address(compliance));

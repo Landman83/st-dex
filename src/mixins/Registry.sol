@@ -3,12 +3,14 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@Rule506c/token/IToken.sol";
+import "@ar-security-token/src/interfaces/IToken.sol";
+// IAttributeRegistry is already imported from IToken.sol
 
 /**
  * @title Registry
- * @notice Registry for ERC20 and Rule506c token assets in the DEX
+ * @notice Registry for ERC20 and security token assets in the DEX
  * @dev Maintains mapping of tokens by address and symbol with verification support for security tokens
+ * using the AttributeRegistry pattern instead of TREX/Rule506c
  */
 contract Registry is Ownable {
     // Asset struct to store token information
@@ -19,7 +21,7 @@ contract Registry is Ownable {
         uint8 decimals;             // Token decimals
         bool isConfirmed;           // Whether token registration is confirmed
         uint64 confirmedTimestamp;  // Timestamp when the token was confirmed
-        bool isSecurityToken;       // Whether it's a Rule506c security token
+        bool isSecurityToken;       // Whether it's a security token
     }
     
     // Storage for assets
@@ -47,7 +49,7 @@ contract Registry is Ownable {
      * @param tokenAddress Address of the token contract
      * @param symbol Symbol of the token
      * @param decimals Number of decimals for the token
-     * @param isSecurityToken Whether the token is a security token (Rule506c)
+     * @param isSecurityToken Whether the token is a security token implementing the AttributeRegistry interface
      */
     function registerToken(
         address tokenAddress,
@@ -68,11 +70,12 @@ contract Registry is Ownable {
         
         // Verify based on token type
         if (isSecurityToken) {
-            // Verify it's a Rule506c token by checking for identity registry
-            try IToken(tokenAddress).identityRegistry() returns (IIdentityRegistry) {
-                // If this doesn't revert, it's a valid Rule506c token
+            // Verify it's a security token by checking for attribute registry
+            // This uses the AttributeRegistry pattern (not TREX/Rule506c)
+            try IToken(tokenAddress).attributeRegistry() returns (IAttributeRegistry) {
+                // If this doesn't revert, it's a valid security token with AttributeRegistry
             } catch {
-                revert("Not a valid Rule506c token");
+                revert("Not a valid security token with AttributeRegistry");
             }
         } else {
             // For regular ERC20, verify basic interface
@@ -114,7 +117,7 @@ contract Registry is Ownable {
      * @param tokenAddress Address of the token contract
      * @param symbol Symbol of the token
      * @param decimals Number of decimals for the token
-     * @param isSecurityToken Whether the token is a security token (Rule506c)
+     * @param isSecurityToken Whether the token is a security token
      */
     function confirmTokenRegistration(
         address tokenAddress,
@@ -273,7 +276,7 @@ contract Registry is Ownable {
     /**
      * @notice Check if an address is a registered and confirmed security token
      * @param assetAddress Address to check
-     * @return True if the address is a confirmed security token
+     * @return True if the address is a confirmed security token using AttributeRegistry
      */
     function isSecurityToken(address assetAddress) external view returns (bool) {
         Asset memory asset = assetsByAddress[assetAddress];
