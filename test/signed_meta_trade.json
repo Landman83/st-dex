@@ -1,0 +1,44 @@
+{
+  "description": "Security token purchase with cash token using meta-transactions",
+  "domain": {
+    "name": "Numena Exchange",
+    "version": "1.0.0",
+    "chainId": 137,
+    "verifyingContract": "0x4C05d6D5b72ec37BEA51b47a8b8c79a5499F5023"
+  },
+  "order": {
+    "maker": "0xB62738Cc5b235460D736Ca607Be5daE7b7313b16",
+    "makerToken": "0x6f0b2dc87027407F17057602E4819274D8c20325",
+    "makerAmount": "100000000000000000000",
+    "taker": "0x9070459bB0cdA8a9dC3C58076a5cF28c41f3Db57",
+    "takerToken": "0xb633A20A12cc65ECafB048F5a36573Cc27c77353",
+    "takerAmount": "1000000000000000000000",
+    "makerNonce": 0,
+    "takerNonce": 0,
+    "expiry": 1749744301
+  },
+  "signatures": {
+    "maker": "0x8ef171a5783c810326143328921a7e2dfca13d8e25b068a0fb10a331083e9fa177e33fb5d5c8d79ff51271feda39f38b93719bc8f8bf164e506c616e971d62f81c",
+    "taker": "0x09d5ced06021924e0b7a7096c639fb6ecc0dade0ad3fb087f94208b6e36ad18e2cffa226b504c5090d182ba9fb78a34861113306513a5a5f1360891b3806ca881b"
+  },
+  "permits": {
+    "maker": {
+      "token": "0x6f0b2dc87027407F17057602E4819274D8c20325",
+      "owner": "0xB62738Cc5b235460D736Ca607Be5daE7b7313b16",
+      "value": "100000000000000000000",
+      "deadline": 1752336301,
+      "v": 27,
+      "r": "0x62e31a5a0362d31abd437a7abdf04ce3455222529d65e22443dc0e6ad3a8571e",
+      "s": "0x5dcf2f61c062c982efdb8175f541c49fc6b7046686d425183eacec7d6b0a02ca"
+    },
+    "taker": {
+      "token": "0xb633A20A12cc65ECafB048F5a36573Cc27c77353",
+      "owner": "0x9070459bB0cdA8a9dC3C58076a5cF28c41f3Db57",
+      "value": "1000000000000000000000",
+      "deadline": 1752336301,
+      "v": 28,
+      "r": "0x0a668fea7eaac16215c09954572153cfdecb081c962ccb65ecf27241f0d6ad05",
+      "s": "0x158598610da966c3933d2c0b90179da1e539c08178b45269891b28d084e8ed81"
+    }
+  }
+}

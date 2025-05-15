@@ -1,0 +1,122 @@
+# Token Implementation Requirements for Meta-Transactions Support
+
+## Summary
+The current system's meta-transaction functionality is failing because the tokens (security token and tUSD) do not implement the EIP-2612 permit standard required for gasless approvals. To support meta-transactions, both tokens need to be updated to implement this standard.
+
+## Problem Details
+1. The Exchange's `executeSignedOrderWithPermits` function attempts to use EIP-2612 permit functionality
+2. Current tokens revert when attempting to call `DOMAIN_SEPARATOR()`
+3. The permit calls fail silently and the transaction proceeds with zero allowances
+4. The trade fails with "Maker has insufficient allowance" error
+
+## Required Token Implementation Changes
+
+### 1. Implement EIP-2612 Permit Extension
+Both tokens need to implement the EIP-2612 standard with the following functions:
+
+```solidity
+function permit(
+    address owner,
+    address spender,
+    uint256 value,
+    uint256 deadline,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+) external;
+
+function nonces(address owner) external view returns (uint256);
+
+function DOMAIN_SEPARATOR() external view returns (bytes32);
+```
+
+### 2. For Security Token Implementation
+Based on the ar-security-token library:
+
+1. Modify the TokenStorage.sol to include the EIP-2612 related storage:
+   - Add a mapping for nonces: `mapping(address => uint256) _nonces`
+   - Add storage for DOMAIN_SEPARATOR
+
+2. Implement the EIP-2612 functions in the Token.sol contract:
+   - Implement the `permit()` function to validate signatures and set allowances
+   - Add the `nonces()` view function
+   - Add the `DOMAIN_SEPARATOR()` view function
+
+### 3. For tUSD Implementation
+The TestUSD contract is a simple ERC20 token. It needs to:
+
+1. Inherit from ERC20Permit or add EIP-2612 functionality:
+```solidity
+// Option 1: Use OpenZeppelin's ERC20Permit
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+
+contract TestUSD is ERC20, ERC20Permit, Ownable {
+    uint8 private _decimals;
+
+    constructor(
+        uint256 initialSupply,
+        uint8 decimalsValue
+    ) ERC20("Test USD", "tUSD") ERC20Permit("Test USD") Ownable(msg.sender) {
+        _decimals = decimalsValue;
+        _mint(msg.sender, initialSupply * (10 ** decimalsValue));
+    }
+    
+    // Rest of the contract...
+}
+```
+
+### 4. Domain Separator Calculation
+Both tokens need to correctly implement the domain separator calculation:
+
+```solidity
+bytes32 constant EIP712DOMAIN_TYPEHASH = keccak256(
+    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+);
+
+function _calculateDomainSeparator() internal view returns (bytes32) {
+    return keccak256(
+        abi.encode(
+            EIP712DOMAIN_TYPEHASH,
+            keccak256(bytes(name())),
+            keccak256(bytes("1")), // version
+            block.chainid,
+            address(this)
+        )
+    );
+}
+```
+
+## Implementation Guidance
+
+1. **Use OpenZeppelin Extensions**: The simplest approach is to use OpenZeppelin's ERC20Permit implementation:
+   - For new tokens: Inherit from ERC20Permit
+   - For existing tokens: Implement the permit functionality manually or create wrapped versions
+
+2. **EIP-712 Typed Data Signing**: Both tokens must properly implement EIP-712 typed data signing for the permit function
+
+3. **Chain ID Handling**: Domain separators must include the correct chain ID to prevent cross-chain replay attacks
+
+4. **Custom Implementation**: If using a custom implementation:
+   - Include signature validation in the permit function
+   - Implement nonce management to prevent replay attacks
+   - Calculate and cache the domain separator at initialization
+   - Add a mechanism to recalculate domain separator when chain ID changes (for forks)
+
+## Testing Considerations
+
+1. Test permit signatures across different chains (testnet, mainnet)
+2. Verify nonce management and signature validation
+3. Test permit functionality with the Exchange contract's meta-transaction functions
+4. Implement recovery mechanisms for users who may encounter issues
+
+## Alternative Solutions (Short-term)
+
+Until tokens are updated, consider:
+
+1. Pre-approve tokens: Have users manually approve tokens before using meta-transactions
+2. Alternative meta-transaction implementation: Use a different pattern that doesn't rely on EIP-2612
+3. Wrapped tokens: Create EIP-2612 compatible wrapper tokens
+
+## Conclusion
+
+Implementing EIP-2612 permit functionality in both tokens is necessary for gasless meta-transactions. This requires changes to token contracts and proper EIP-712 domain handling.

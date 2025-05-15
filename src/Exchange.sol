@@ -132,7 +132,8 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
                 _order.takerAmount
             );
 
-        // Log transfer attempts for monitoring
+        // Log transfer attempts for monitoring only - no enforcement at exchange level
+        // This allows logging of events for analytics and auditing, but compliance is enforced at token level
         ICompliance(complianceContract).logTransferAttempt(
             _order.makerToken,
             _order.maker,
@@ -329,6 +330,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
     
     /**
      * @notice Helper function to check if an investor has KYC verification for a token
+     * @dev This is for informational purposes only - compliance is enforced at token level
      * @param token The token address to check
      * @param user The user address to check
      * @return True if the user has KYC verification, false otherwise
@@ -343,6 +345,7 @@ contract Exchange is IExchange, Initializer, ReentrancyGuard {
     
     /**
      * @notice Helper function to check if an investor is an accredited investor for a token
+     * @dev This is for informational purposes only - compliance is enforced at token level
      * @param token The token address to check
      * @param user The user address to check
      * @return True if the user is an accredited investor, false otherwise
